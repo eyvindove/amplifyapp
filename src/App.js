@@ -1,79 +1,155 @@
-/* src/App.js */
 import React, { useEffect, useState } from 'react'
 import Amplify, { API, graphqlOperation } from 'aws-amplify'
-import { createTodo } from './graphql/mutations'
+import { createTodo, deleteTodo } from './graphql/mutations'
 import { listTodos } from './graphql/queries'
 
-import { Authenticator } from '@aws-amplify/ui-react'
+import {
+  Authenticator,
+  Button,
+  Card,
+  Flex,
+  Heading,
+  Text,
+  TextField,
+} from '@aws-amplify/ui-react'
+import { MdDelete } from 'react-icons/md'
 import '@aws-amplify/ui-react/styles.css'
 
 import awsExports from "./aws-exports"
 Amplify.configure(awsExports)
 
-const initialState = { name: '', description: '' }
+const initialState = {
+  name: '',
+  description: '',
+}
 
 const App = () => {
-  const [formState, setFormState] = useState(initialState)
+  const [formData, setFormData] = useState(initialState)
   const [todos, setTodos] = useState([])
 
   useEffect(() => {
     fetchTodos()
   }, [])
 
-  function setInput(key, value) {
-    setFormState({ ...formState, [key]: value })
+  const setInput = (key, value) => {
+    setFormData({ ...formData, [key]: value })
   }
 
-  async function fetchTodos() {
+  const fetchTodos = async () => {
     try {
       const todoData = await API.graphql(graphqlOperation(listTodos))
       const todos = todoData.data.listTodos.items
+
       setTodos(todos)
-    } catch (err) { console.log('error fetching todos') }
+    } catch (err) {
+      console.log('error fetching todos')
+    }
   }
 
-  async function addTodo() {
+  const addTodo = async () => {
     try {
-      if (!formState.name || !formState.description) return
-      const todo = { ...formState }
-      setTodos([...todos, todo])
-      setFormState(initialState)
-      await API.graphql(graphqlOperation(createTodo, {input: todo}))
+      if (!formData.name || !formData.description) return
+
+      const todo = { ...formData }
+
+      setFormData(initialState)
+      await API.graphql(graphqlOperation(createTodo, { input: todo }))
+      await fetchTodos()
     } catch (err) {
       console.log('error creating todo:', err)
     }
   }
 
+  const removeTodo = async (todo) => {
+    try {
+      await API.graphql(graphqlOperation(deleteTodo, { input: { id: todo.id } }))
+      await fetchTodos()
+    } catch (err) {
+      console.log('error removing todo:', err)
+    }
+  }
+
+  const todoList = (
+    todos.map((todo, index) => (
+      <Card
+        key={todo.id || index}
+        variation="outlined"
+        style={styles.todoCard}
+      >
+        <Heading level={4}>
+          {todo.name}
+        </Heading>
+        <Text>
+          {todo.description}
+        </Text>
+
+        <Flex
+          justifyContent="space-between"
+          alignItems="center"
+        >
+          <Text
+            style={styles.dateTime}
+          >
+            {new Date(todo.updatedAt).toLocaleString('zh')}
+          </Text>
+          <MdDelete
+            style={styles.todoDelete}
+            onClick={() => removeTodo(todo)}
+          />
+        </Flex>
+      </Card>
+    ))
+  )
+
   return (
-    <Authenticator>
+    <Authenticator variation="modal">
       {({ signOut, user }) => (
         <div style={styles.container}>
-          <h1>Hello {user.username}</h1>
-          <button style={styles.button} onClick={signOut}>Sign out</button>
+          <div style={styles.header}>
+            <h1>Hello, {user.username}</h1>
+            <Button
+              size='small'
+              isFullWidth={true}
+              loadingText='Loading...'
+              ariaLabel='sign out'
+              onClick={signOut}
+            >
+              Sign out
+            </Button>
+          </div>
           <br />
 
-          <h2>Amplify Todos</h2>
-          <input
+          <Heading level={2}>
+            Amplify Todos
+          </Heading>
+
+          <TextField
+            type='text'
+            label='Name'
+            placeholder='Enter todo name'
+            value={formData.name}
             onChange={event => setInput('name', event.target.value)}
-            style={styles.input}
-            value={formState.name}
-            placeholder="Name"
           />
-          <input
+
+          <TextField
+            label='Description'
+            placeholder='Enter todo description'
+            value={formData.description}
             onChange={event => setInput('description', event.target.value)}
-            style={styles.input}
-            value={formState.description}
-            placeholder="Description"
           />
-          <button style={styles.button} onClick={addTodo}>Create Todo</button>
-          {
-            todos.map((todo, index) => (
-              <div key={todo.id ? todo.id : index} style={styles.todo}>
-                <p style={styles.todoName}>{todo.name}</p>
-                <p style={styles.todoDescription}>{todo.description}</p>
-              </div>
-            ))
-          }
+
+          <Button
+            variation='primary'
+            isFullWidth={true}
+            loadingText='Loading...'
+            ariaLabel='create todo'
+            onClick={addTodo}
+            style={styles.createButton}
+          >
+            Create Todo
+          </Button>
+
+          {todoList}
         </div>
       )}
     </Authenticator>
@@ -81,12 +157,12 @@ const App = () => {
 }
 
 const styles = {
-  container: { width: 400, margin: '0 auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 20 },
-  todo: {  marginBottom: 15 },
-  input: { border: 'none', backgroundColor: '#ddd', marginBottom: 10, padding: 8, fontSize: 18 },
-  todoName: { fontSize: 20, fontWeight: 'bold' },
-  todoDescription: { marginBottom: 0 },
-  button: { backgroundColor: 'black', color: 'white', outline: 'none', fontSize: 18, padding: '12px 0px' }
+  container: { width: 600, margin: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 20 },
+  header: { padding: 16, textAlign: 'center', backgroundColor: '#ebebeb', borderRadius: 16 },
+  todoCard: { position: 'relative', marginTop: 32 },
+  todoDelete: { width: 20, height: 20, cursor: 'pointer' },
+  dateTime: { fontSize: 12, color: '#9a9a9a' },
+  createButton: { marginTop: 16 },
 }
 
 export default App
