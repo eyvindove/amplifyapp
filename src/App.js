@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react'
+import TextFieldWrapper from './components/TextFieldWrapper'
 import Amplify, { API, graphqlOperation } from 'aws-amplify'
-import { createTodo, deleteTodo } from './graphql/mutations'
-import { listTodos } from './graphql/queries'
-
 import {
   Authenticator,
   Button,
@@ -10,30 +8,39 @@ import {
   Flex,
   Heading,
   Text,
-  TextField,
 } from '@aws-amplify/ui-react'
-import { MdDelete } from 'react-icons/md'
 import '@aws-amplify/ui-react/styles.css'
+import { createTodo, deleteTodo } from './graphql/mutations'
+import { listTodos } from './graphql/queries'
+import { MdDelete } from 'react-icons/md'
 
 import awsExports from "./aws-exports"
 Amplify.configure(awsExports)
 
-const initialState = {
-  name: '',
-  description: '',
-}
-
 const App = () => {
-  const [formData, setFormData] = useState(initialState)
+  const nameTextFieldRef = React.useRef(null)
+  const descriptionTextFieldRef = React.useRef(null)
+
+  const textFieldConfig = [
+    {
+      id: 'name',
+      ref: nameTextFieldRef,
+      label: 'Name',
+      placeholder: 'Enter todo name',
+    },
+    {
+      id: 'description',
+      ref: descriptionTextFieldRef,
+      label: 'Description',
+      placeholder: 'Enter todo description',
+    },
+  ]
+
   const [todos, setTodos] = useState([])
 
   useEffect(() => {
     fetchTodos()
   }, [])
-
-  const setInput = (key, value) => {
-    setFormData({ ...formData, [key]: value })
-  }
 
   const fetchTodos = async () => {
     try {
@@ -48,11 +55,17 @@ const App = () => {
 
   const addTodo = async () => {
     try {
-      if (!formData.name || !formData.description) return
+      const name = nameTextFieldRef.current.value
+      const description = descriptionTextFieldRef.current.value
 
-      const todo = { ...formData }
+      if (!name) return window.alert('Please enter your todo name')
+      if (!description) return window.alert('Please enter your todo description')
 
-      setFormData(initialState)
+      const todo = {
+        name,
+        description,
+      }
+
       await API.graphql(graphqlOperation(createTodo, { input: todo }))
       await fetchTodos()
     } catch (err) {
@@ -70,35 +83,37 @@ const App = () => {
   }
 
   const todoList = (
-    todos.map((todo, index) => (
-      <Card
-        key={todo.id || index}
-        variation="outlined"
-        style={styles.todoCard}
-      >
-        <Heading level={4}>
-          {todo.name}
-        </Heading>
-        <Text>
-          {todo.description}
-        </Text>
-
-        <Flex
-          justifyContent="space-between"
-          alignItems="center"
+    todos
+      .sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime())
+      .map((todo, index) => (
+        <Card
+          key={todo.id || index}
+          variation="outlined"
+          style={styles.todoCard}
         >
-          <Text
-            style={styles.dateTime}
-          >
-            {new Date(todo.updatedAt).toLocaleString('zh')}
+          <Heading level={4}>
+            {todo.name}
+          </Heading>
+          <Text>
+            {todo.description}
           </Text>
-          <MdDelete
-            style={styles.todoDelete}
-            onClick={() => removeTodo(todo)}
-          />
-        </Flex>
-      </Card>
-    ))
+
+          <Flex
+            justifyContent="space-between"
+            alignItems="center"
+          >
+            <Text
+              style={styles.dateTime}
+            >
+              {new Date(todo.updatedAt).toLocaleString('zh')}
+            </Text>
+            <MdDelete
+              style={styles.todoDelete}
+              onClick={() => removeTodo(todo)}
+            />
+          </Flex>
+        </Card>
+      ))
   )
 
   return (
@@ -123,20 +138,16 @@ const App = () => {
             Amplify Todos
           </Heading>
 
-          <TextField
-            type='text'
-            label='Name'
-            placeholder='Enter todo name'
-            value={formData.name}
-            onChange={event => setInput('name', event.target.value)}
-          />
-
-          <TextField
-            label='Description'
-            placeholder='Enter todo description'
-            value={formData.description}
-            onChange={event => setInput('description', event.target.value)}
-          />
+          {
+            textFieldConfig.map(item => (
+              <TextFieldWrapper
+                key={item.id}
+                ref={item.ref}
+                label={item.label}
+                placeholder={item.placeholder}
+              />
+            ))
+          }
 
           <Button
             variation='primary'
